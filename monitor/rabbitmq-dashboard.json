@@ -1,0 +1,38 @@
+{
+    "dashboard": {
+      "title": "RabbitMQ Overview",
+      "panels": [
+        {
+          "type": "gauge",
+          "title": "Queue Depth",
+          "targets": [{ "expr": "rabbitmq_queue_depth" }]
+        },
+        {
+          "type": "gauge",
+          "title": "DLQ Depth",
+          "targets": [{ "expr": "rabbitmq_dlq_depth" }]
+        },
+        {
+          "type": "gauge",
+          "title": "Live Workers",
+          "targets": [{ "expr": "rabbitmq_live_workers" }]
+        },
+        {
+          "type": "stat",
+          "title": "Messages Published",
+          "targets": [{ "expr": "rabbitmq_messages_published" }]
+        },
+        {
+          "type": "stat",
+          "title": "Messages Acked",
+          "targets": [{ "expr": "rabbitmq_messages_acknowledged" }]
+        },
+        {
+          "type": "timeseries",
+          "title": "Per‑Worker Throughput",
+          "targets": [{ "expr": "rabbitmq_worker_processed_total" }]
+        }
+      ]
+    }
+  }
+  

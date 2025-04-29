@@ -1,0 +1,65 @@
+version: '3.8'
+services:
+  rabbit1:
+    image: rabbitmq:3.12-management
+    container_name: rabbit1
+    hostname: rabbit1
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: secretcookie
+      RABBITMQ_NODENAME: rabbit@rabbit1
+    volumes:
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./config/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - rabbit1-data:/var/lib/rabbitmq
+    networks:
+      - rabbitmq_cluster
+
+  rabbit2:
+    image: rabbitmq:3.12-management
+    container_name: rabbit2
+    hostname: rabbit2
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: secretcookie
+      RABBITMQ_NODENAME: rabbit@rabbit2
+    volumes:
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./config/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - rabbit2-data:/var/lib/rabbitmq
+    depends_on:
+      - rabbit1
+    networks:
+      - rabbitmq_cluster
+
+  rabbit3:
+    image: rabbitmq:3.12-management
+    container_name: rabbit3
+    hostname: rabbit3
+    ports:
+      - "5674:5672"
+      - "15674:15672"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: secretcookie
+      RABBITMQ_NODENAME: rabbit@rabbit3
+    volumes:
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./config/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - rabbit3-data:/var/lib/rabbitmq
+    depends_on:
+      - rabbit1
+    networks:
+      - rabbitmq_cluster
+
+volumes:
+  rabbit1-data:
+  rabbit2-data:
+  rabbit3-data:
+
+networks:
+  rabbitmq_cluster:
+    driver: bridge
