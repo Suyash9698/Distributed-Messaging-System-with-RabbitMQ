@@ -377,15 +377,6 @@ func handleSubmitTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, "Timed out waiting for feedback", http.StatusGatewayTimeout)
-
-	// testing: we don't wait for the worker reply here; fire‑and‑forget:
-	w.WriteHeader(http.StatusAccepted)
-	fmt.Fprintf(w, `{"status":"accepted","task":"%s"}`, task)
-	return
-	//test ends here
-
-	log.Printf("✔ Task submitted by: %s → %s", email, task)
-	fmt.Fprintf(w, "✅ Task auto-routed: %s\n", task)
 }
 
 func autoDetectAndPublish(ch *amqp.Channel, task, routingKey, headersJSON, fail, retry, replyTo, corrID string, useShards bool) error {
