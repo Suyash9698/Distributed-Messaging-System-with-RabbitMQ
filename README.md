@@ -1,140 +1,78 @@
 # Distributed Messaging System with RabbitMQ
 
-> **A production-grade distributed messaging system built with Go, RabbitMQ, Redis, and Prometheus. Features include dynamic autoscaling, quorum queues, load-balanced gateway servers, Google OAuth2 authentication, advanced monitoring, and fault-tolerant node recovery.**
+A task-processing system in Go built on a 3-node RabbitMQ cluster. Clients log in with Google, send tasks through a load-balanced HTTP gateway, and workers pick them up from sharded quorum queues. Failed tasks are retried with a delay and end up in a dead-letter queue after too many failures.
 
----
+I built this to learn how message brokers behave under failure: what happens when a node dies, when a worker crashes mid-task, or when one client floods the system.
 
-## ✨ Features
+## What it does
 
-- **RabbitMQ Clustering** with quorum queues (Raft-based consensus)
-- **Autoscaling Workers** based on queue depth
-- **Load Balancing** across multiple gateway servers
-- **Secure Authentication** using Google OAuth2
-- **Header, Direct, Topic, Fanout Exchanges** fully utilized
-- **Retry & Dead Letter Queues (DLQ)**
-- **Redis-based Rate Limiting**
-- **Prometheus + Grafana Monitoring**
-- **Dockerized Setup** for easy deployment
-- **Quorum Recovery Handler** for automatic node healing
+- **3-node RabbitMQ cluster with quorum queues.** Queues are replicated with Raft, so losing one node does not lose messages. A recovery handler watches the cluster and restarts nodes that drop out.
+- **Gateway + load balancer.** Each gateway starts on a free port and registers itself with the load balancer, which health-checks gateways and removes dead ones.
+- **Sharded routing.** The gateway hashes each task to a shard queue, so work spreads evenly across workers.
+- **All four exchange types.** Direct, topic, fanout and headers exchanges, each with its own producer and consumer.
+- **Retries and dead letters.** Failed tasks go to a delay queue and are retried. After the retry limit they move to a DLQ for inspection.
+- **Rate limiting.** Per-API-key limits (10 requests a minute) backed by Redis.
+- **Login.** Google OAuth2. The auth server issues a JWT, and Redis caches the token.
+- **Metrics.** Queue depth, DLQ depth, live workers, publish/ack counts and task latency, exported for Prometheus. A Grafana dashboard is in `monitor/`.
 
----
-
-## 🛠️ Tech Stack
-
-- **Golang** (Concurrency, Channels)
-- **RabbitMQ** (Messaging backbone)
-- **Redis** (Token Cache, Rate Limiting)
-- **Docker** (Containerization)
-- **Prometheus** (Monitoring)
-- **Grafana** (Visualization)
-
----
-
-## 🖥️ System Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
-
-  subgraph Gateway Layer
-    LB[Load Balancer]
-    GW1[Gateway Server 1]
-    GW2[Gateway Server 2]
-  end
-
-  subgraph RabbitMQ Cluster
-    RMQ1[Quorum Node 1]
-    RMQ2[Quorum Node 2]
-    RMQ3[Quorum Node 3]
-    DLX[Dead Letter Exchange]
-    DLQ[Dead Letter Queue]
-  end
-
-  subgraph Worker Layer
-    W1[Shard Worker 1]
-    W2[Shard Worker 2]
-    W3[Retry Worker]
-    W4[Resilient Worker]
-  end
-
-  subgraph Monitoring Layer
-    Prometheus
-    Grafana
-  end
-
-  Client --> LB --> GW1
-  Client --> LB --> GW2
-
-  GW1 --> RMQ1
-  GW2 --> RMQ2
-
-  RMQ1 -->|Shard Queues| W1
-  RMQ2 -->|Shard Queues| W2
-  W1 -->|Retry to| W3
-  W3 -->|Max Failures| DLQ
-  DLX --> DLQ
-
-  RMQ3 --> Prometheus
-  W1 --> Prometheus
-  W2 --> Prometheus
-  W3 --> Prometheus
-
-  Prometheus --> Grafana
+  Client --> LB[Load balancer]
+  LB --> GW1[Gateway 1]
+  LB --> GW2[Gateway 2]
+  Client -. login .-> Auth[Auth server] --> Redis
+  GW1 --> RMQ[(RabbitMQ cluster<br/>3 quorum nodes)]
+  GW2 --> RMQ
+  RMQ -->|shard queues| W[Workers]
+  W -->|failure| Retry[Delay / retry queue]
+  Retry -->|retry limit hit| DLQ[Dead-letter queue]
+  RMQ --> Prom[Prometheus] --> Grafana
 ```
 
+## Project layout
 
----
+```
+cmd/
+  auth_server/       Google login, issues JWTs (port 9000)
+  auth_worker/       handles login requests from the queue
+  client/            CLI client: logs in and submits tasks
+  load_balancer/     routes requests to healthy gateways
+  gateway_consumer/  sample consumer for gateway messages
+  resilient/         consumer that survives broker restarts
+  flood/             load generator for testing rate limits
+  testing_shards/    sends tasks to check shard distribution
+gateway/             HTTP gateway (registers with the load balancer)
+dead_letter_queues/  retry + DLQ producers and workers
+direct_exchange/ topic_exchange/ headers_exchange/ pubsub/
+work_queue_model/    work queue producer and workers
+quorum_recovery/     watches cluster health and recovers nodes
+limiter/             Redis rate limiter
+monitor/             Prometheus metrics + Grafana dashboard
+```
 
-## 🚀 Setup
+## Running it
+
+You need Go 1.23+ and Docker.
 
 ```bash
-# Clone the repository
-$ git clone https://github.com/yourusername/distributed-messaging-system.git
+# 3-node RabbitMQ cluster
+docker-compose up -d
 
-# Spin up RabbitMQ cluster, Redis, Prometheus, Grafana
-$ docker-compose up -d
+# Redis for rate limiting and token cache
+docker run -d -p 6379:6379 redis
 
-# Run gateway servers
-$ go run gateway/server.go
+# Google OAuth credentials and a JWT signing key
+export GOOGLE_CLIENT_ID=...
+export GOOGLE_CLIENT_SECRET=...
+export JWT_SECRET=$(openssl rand -hex 32)
 
-# Start worker pool
-$ go run worker/main.go
+go run ./cmd/auth_server
+go run ./cmd/auth_worker
+go run ./cmd/load_balancer
+go run ./gateway          # start two or more for load balancing
+go run ./cmd/client       # log in and send tasks
 ```
 
----
-
-## 📈 Monitoring Metrics
-
-- `rabbitmq_queue_depth`
-- `rabbitmq_dlq_depth`
-- `rabbitmq_live_workers`
-- `rabbitmq_messages_published`
-- `rabbitmq_messages_acknowledged`
-- `rabbitmq_task_latency_ms`
-
-> Visualize all live metrics on a stunning custom Grafana dashboard!
-
----
-
-## 🔒 Authentication Flow
-
-- Google OAuth2 Authentication
-- Redis caching for session tokens (expiry: 5 min)
-- JWT tokens used for secured API access
-
----
-
-## 🛡️ Fault Tolerance
-
-- Quorum recovery when any RabbitMQ node fails
-- Auto-scaling workers when queue load spikes
-- Retry queues with exponential backoff for failed tasks
-
----
-
----
-
-## 🙌 Acknowledgements
-
-- RabbitMQ Official Documentation
-- Prometheus and Grafana Community
-- Go gRPC and Concurrency Best Practices
+To try the failure handling, stop one RabbitMQ container while tasks are flowing (`docker stop <node>`) and watch the quorum recovery logs, or run `go run ./cmd/flood` to hit the rate limiter.
