@@ -1,0 +1,6 @@
+.DS_Store
+*.log
+dump.rdb
+erlang.cookie
+.env
+/bin/
