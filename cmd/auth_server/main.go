@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -20,11 +21,11 @@ var (
 	rdb *redis.Client
 )
 
-var jwtSecret = []byte("super-secret-key-keep-this-safe")
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 var googleOauthConfig = &oauth2.Config{
-	ClientID:     "<YOUR_CLIENT_ID>",
-	ClientSecret: "<YOUR_CLIENT_SECRET>",
+	ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+	ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 	RedirectURL:  "http://localhost:9000/oauth2/callback", // 👉 Dedicated auth server port
 	Scopes: []string{
 		"https://www.googleapis.com/auth/userinfo.email",
