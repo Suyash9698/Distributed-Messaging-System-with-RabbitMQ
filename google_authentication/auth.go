@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -13,11 +14,11 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-var JwtSecret = []byte("super-secret-key-keep-this-safe")
+var JwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 var googleOauthConfig = &oauth2.Config{
-	ClientID:     "<YOUR_CLIENT_ID>",
-	ClientSecret: "<YOUR_CLIENT_SECRET>",
+	ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+	ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 	RedirectURL:  "http://localhost:89/oauth2/callback", // 👈 Load balancer port
 	Scopes: []string{
 		"https://www.googleapis.com/auth/userinfo.email",
